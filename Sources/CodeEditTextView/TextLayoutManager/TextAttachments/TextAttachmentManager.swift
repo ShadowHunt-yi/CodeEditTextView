@@ -72,6 +72,24 @@ public final class TextAttachmentManager {
         return attachment
     }
 
+    /// 按类型移除全部附件（例如卸载某一类行尾装饰）。
+    ///
+    /// 不要用「安装时记录的偏移」逐个移除：`textUpdated(atOffset:delta:)` 会在编辑后
+    /// 平移附件位置，旧偏移随即失效，`remove(atOffset:)` 会返回 nil 并留下残留附件，
+    /// 表现为同一行重复绘制多份标注。
+    /// - Parameter type: 要移除的附件具体类型。
+    public func removeAttachments<T: TextAttachment>(ofType type: T.Type) {
+        // 单次过滤 + 一次整体替换：逐项 remove(at:) 会让数组反复搬移，n 个附件退化为 O(n²)。
+        let removed = orderedAttachments.filter { $0.attachment is T }
+        guard !removed.isEmpty else { return }
+        orderedAttachments.removeAll { $0.attachment is T }
+        for attachment in removed {
+            layoutManager?.invalidateLayoutForRange(attachment.range)
+            delegate?.textAttachmentDidRemove(attachment.attachment, for: attachment.range)
+        }
+        layoutManager?.setNeedsLayout()
+    }
+
     /// Finds attachments starting in the given line range, and returns them as an array.
     /// Returned attachment's ranges will be relative to the _document_, not the line.
     /// - Complexity: `O(n log(n))`, ideally `O(log(n))`
