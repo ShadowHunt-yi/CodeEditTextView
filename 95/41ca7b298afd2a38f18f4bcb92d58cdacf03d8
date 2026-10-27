@@ -1,0 +1,22 @@
+Sources/CodeEditTextView/TextLayoutManager/TextAttachments/TextAttachmentManager.swift
+  s_c769df6767aed6::t_c2af860d261124 75-81,87,89,91-92
+  s_c769df6767aed6::t_a3676e3bb8c590 82-86
+  s_c769df6767aed6::t_6670d8054a5efe 88
+  s_c769df6767aed6::t_67ae0e4875fea1 90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "9541ca7b298afd2a38f18f4bcb92d58cdacf03d8",
+  "prompts": {},
+  "sessions": {
+    "s_c769df6767aed6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3e87a03a-c136-4ac7-884f-358f6441e8d7",
+        "model": "DeepSeek-V4.1-Flash"
+      },
+      "human_author": "qiyi <1724747604@qq.com>"
+    }
+  }
+}
