@@ -5,6 +5,7 @@ import PackageDescription
 
 let package = Package(
     name: "CodeEditTextView",
+    defaultLocalization: "en",
     platforms: [.macOS(.v13)],
     products: [
         // A Fast, Efficient text view for code.
