@@ -1,0 +1,32 @@
+Sources/CodeEditTextView/TextLayoutManager/TextAttachments/TextAttachment.swift
+  s_c769df6767aed6::t_673ef775d36049 36-42
+  s_c769df6767aed6::t_981736be4d9881 33-35
+Sources/CodeEditTextView/TextLine/Typesetter/TypesetContext.swift
+  s_c769df6767aed6::t_673ef775d36049 30-33
+Sources/CodeEditTextView/TextView/TextView+Mouse.swift
+  s_df5e26d5aeb794::t_3f989f80049ef6 88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "559b4ef391b7b293b4348ac694ebeec8f06142b8",
+  "prompts": {},
+  "sessions": {
+    "s_c769df6767aed6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3e87a03a-c136-4ac7-884f-358f6441e8d7",
+        "model": "DeepSeek-V4.1-Flash"
+      },
+      "human_author": "qiyi <1724747604@qq.com>"
+    },
+    "s_df5e26d5aeb794": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "47035f45-c64f-429d-a78e-0d408de7eba5",
+        "model": "DeepSeek-V4.1-Flash"
+      },
+      "human_author": "qiyi <1724747604@qq.com>"
+    }
+  }
+}
