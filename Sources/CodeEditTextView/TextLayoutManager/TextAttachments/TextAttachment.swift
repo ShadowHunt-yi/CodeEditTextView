@@ -30,6 +30,16 @@ public protocol TextAttachment: AnyObject {
 
 public extension TextAttachment {
     func attachmentAction() -> TextAttachmentAction { .discard }
+
+    /// 单击附件时调用。默认无操作；标注类附件（如 git blame）可借此响应单击。
+    func attachmentSingleClick() {}
+
+    /// 是否为「行尾装饰」：绘制在行末但不参与换行计算。
+    ///
+    /// 行尾标注（git blame 等）如果按普通附件计入行宽，当标注宽度超过剩余空间时，
+    /// 排版器会把换行符挤到下一行，产生幽灵空行与行号错位。装饰类附件因此跳过换行判断，
+    /// 超出部分由视图裁剪（等价于 VS Code 的行尾截断）。
+    var isTrailingDecoration: Bool { false }
 }
 
 /// Type-erasing type for ``TextAttachment`` that also contains range information about the attachment.

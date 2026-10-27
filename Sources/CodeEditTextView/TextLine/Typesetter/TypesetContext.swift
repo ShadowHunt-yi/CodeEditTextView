@@ -27,8 +27,10 @@ struct TypesetContext {
     /// Appends an attachment to the current ``fragmentContext``
     /// - Parameter attachment: The type-erased attachment to append.
     mutating func appendAttachment(_ attachment: AnyTextAttachment) {
-        // Check if we can append this attachment to the current line
-        if fragmentContext.width + attachment.width > displayData.maxWidth {
+        // Check if we can append this attachment to the current line.
+        // 行尾装饰（blame 标注等）不参与换行判断：否则标注稍长就会把换行符挤到新一行。
+        if !attachment.attachment.isTrailingDecoration,
+           fragmentContext.width + attachment.width > displayData.maxWidth {
             popCurrentData()
         }
 
