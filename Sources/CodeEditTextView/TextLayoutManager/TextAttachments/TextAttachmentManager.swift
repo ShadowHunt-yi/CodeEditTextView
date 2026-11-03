@@ -19,6 +19,69 @@ public final class TextAttachmentManager {
 
     public weak var delegate: TextAttachmentManagerDelegate?
 
+    /// 公开构造：便于在不持有 `TextLayoutManager` 的场景（基准、测试）单独使用。
+    public init() { }
+
+    /// 批量更新深度。>0 时布局失效只记标志，不真的触发。
+    ///
+    /// 一次装几千个标注（git blame、查找高亮）时，逐条 `setNeedsLayout()` 会让
+    /// `visibleLineIds` 被清空 N 次、`layoutView.needsLayout` 被置 N 次，
+    /// 主线程白白走 N 遍失效流程。批量期间只记一次。
+    private var batchDepth: Int = 0
+    private var needsLayoutAfterBatch: Bool = false
+
+    /// 进入批量更新：期间不触发布局失效。
+    public func beginBatchUpdates() {
+        batchDepth += 1
+    }
+
+    /// 结束批量更新：若有累积的失效请求，这里统一触发一次。
+    public func endBatchUpdates() {
+        batchDepth = max(0, batchDepth - 1)
+        guard batchDepth == 0, needsLayoutAfterBatch else { return }
+        needsLayoutAfterBatch = false
+        layoutManager?.setNeedsLayout()
+    }
+
+    /// 请求一次布局失效；批量期间只记标志。
+    private func requestLayoutInvalidation() {
+        if batchDepth > 0 {
+            needsLayoutAfterBatch = true
+        } else {
+            layoutManager?.setNeedsLayout()
+        }
+    }
+
+    /// 批量添加附件。
+    ///
+    /// 单条 `add` 是 `O(n)` 的数组插入 + 一次全量失效，N 条就是 `O(n²)` 加 N 次失效。
+    /// 这里先拼接再一次排序（`O(n log n)`），并且只在末尾触发一次布局失效。
+    /// - Parameter items: 附件与其范围。范围若落在同一行会按 location 排序后交给布局。
+    public func add(contentsOf items: [(attachment: any TextAttachment, range: NSRange)]) {
+        guard !items.isEmpty else { return }
+
+        beginBatchUpdates()
+        defer { endBatchUpdates() }
+
+        // 拼接 + 一次排序。比逐个 insert 进已排序数组快一个量级。
+        var merged = orderedAttachments
+        merged.reserveCapacity(orderedAttachments.count + items.count)
+        merged.append(contentsOf: items.map { AnyTextAttachment(range: $0.range, attachment: $0.attachment) })
+        merged.sort { $0.range.location < $1.range.location }
+        orderedAttachments = merged
+
+        // 行高合并必须逐条做：它改的是 lineStorage 里的行高，不是纯数组操作。
+        for item in items {
+            mergeTrailingLine(for: item.range)
+        }
+
+        for item in items {
+            delegate?.textAttachmentDidAdd(item.attachment, for: item.range)
+        }
+        // defer 里的 endBatchUpdates 会触发一次 setNeedsLayout。
+        needsLayoutAfterBatch = true
+    }
+
     /// Adds a new attachment, keeping `orderedAttachments` sorted by range.location.
     /// If two attachments overlap, the layout phase will later ignore the one with the higher start.
     /// - Complexity: `O(n log(n))` due to array insertion. Could be improved with a binary tree.
@@ -27,30 +90,34 @@ public final class TextAttachmentManager {
         let insertIndex = findInsertionIndex(for: range.location)
         orderedAttachments.insert(attachment, at: insertIndex)
 
-        // This is ugly, but if our attachment meets the end of the next line, we need to merge that line with this
-        // one.
+        mergeTrailingLine(for: range)
+        requestLayoutInvalidation()
+
+        delegate?.textAttachmentDidAdd(attachment.attachment, for: range)
+    }
+
+    /// 附件盖住行尾换行符时，把它后面那一行合成同一行（行高置 0）。
+    ///
+    /// 抽出来是因为批量添加也要逐条做这一步——它改的是 `lineStorage` 的行高，
+    /// 不是纯数组操作，没法像排序那样合并。
+    private func mergeTrailingLine(for range: NSRange) {
         var getNextOne = false
-        layoutManager?.lineStorage.linesInRange(range).dropFirst().forEach {
-            if $0.height != 0 {
-                layoutManager?.lineStorage.update(atOffset: $0.range.location, delta: 0, deltaHeight: -$0.height)
+        layoutManager?.lineStorage.linesInRange(range).dropFirst().forEach { line in
+            if line.height != 0 {
+                layoutManager?.lineStorage.update(atOffset: line.range.location, delta: 0, deltaHeight: -line.height)
             }
 
             // Only do this if it's not the end of the document
-            if range.max == $0.range.max && range.max != layoutManager?.lineStorage.length {
+            if range.max == line.range.max && range.max != layoutManager?.lineStorage.length {
                 getNextOne = true
             }
         }
 
         if getNextOne,
-            let trailingLine = layoutManager?.lineStorage.getLine(atOffset: range.max),
+           let trailingLine = layoutManager?.lineStorage.getLine(atOffset: range.max),
            trailingLine.height != 0 {
-            // Update the one trailing line.
             layoutManager?.lineStorage.update(atOffset: range.max, delta: 0, deltaHeight: -trailingLine.height)
         }
-
-        layoutManager?.setNeedsLayout()
-
-        delegate?.textAttachmentDidAdd(attachment.attachment, for: range)
     }
 
     /// Removes an attachment and invalidates layout for the removed range.
@@ -119,10 +186,14 @@ public final class TextAttachmentManager {
     /// - Parameter range: The `NSRange` to test for overlap.
     /// - Returns: An array of `AnyTextAttachment` instances whose ranges intersect `query`.
     public func getAttachmentsOverlapping(_ range: NSRange) -> [AnyTextAttachment] {
-        // Find the first attachment whose end is beyond the start of the query.
-        guard let startIdx = orderedAttachments.firstIndex(where: { $0.range.upperBound >= range.location }) else {
-            return []
+        // 起点用「按 location 二分」再向前回退：附件可能跨过查询起点，
+        // 直接按 `upperBound >= range.location` 二分是不成立的谓词
+        // （upperBound 随 location 不单调，长附件会破坏单调性），会漏掉跨行附件。
+        var startIdx = findInsertionIndex(for: range.location)
+        while startIdx > 0, orderedAttachments[startIdx - 1].range.max > range.location {
+            startIdx -= 1
         }
+        guard startIdx < orderedAttachments.count else { return [] }
 
         var results: [AnyTextAttachment] = []
         var idx = startIdx
@@ -149,13 +220,39 @@ public final class TextAttachmentManager {
     ///   - atOffset: The offset text was updated at.
     ///   - delta: The change delta, positive is an insertion.
     package func textUpdated(atOffset: Int, delta: Int) {
-        for (idx, attachment) in orderedAttachments.enumerated().reversed() {
-            if attachment.range.contains(atOffset) {
-                orderedAttachments.remove(at: idx)
-            } else if attachment.range.location > atOffset {
-                orderedAttachments[idx].range.location += delta
-            }
+        // 附件按 location 升序排列，所以只有位置 >= atOffset 的才需要平移。
+        //
+        // 原来是每次编辑都倒序遍历**全部**附件，且在循环里 `remove(at:)`——
+        // 几千个附件（git blame、查找高亮）时，每次按键都是 O(n)，最坏 O(n²)。
+        // 现在用二分定位分界点，只处理尾部，删除改成一次过滤。
+        let split = findInsertionIndex(for: atOffset)
+
+        // 跨过编辑点的附件要删除。它们的位置在 atOffset 之前、但范围覆盖到 atOffset，
+        // 数量极少，从分界点往前扫到 range.max <= atOffset 为止。
+        var headEnd = split
+        while headEnd > 0, orderedAttachments[headEnd - 1].range.max > atOffset {
+            headEnd -= 1
         }
+
+        var kept: [AnyTextAttachment] = []
+        kept.reserveCapacity(orderedAttachments.count)
+
+        // 分界点之前：位置与范围都不受影响。
+        for index in 0..<headEnd {
+            kept.append(orderedAttachments[index])
+        }
+        // 分界点之后：落在编辑区间内的丢弃，其余整体平移。
+        for index in headEnd..<orderedAttachments.count {
+            var attachment = orderedAttachments[index]
+            if attachment.range.contains(atOffset) {
+                continue
+            }
+            if attachment.range.location > atOffset {
+                attachment.range.location += delta
+            }
+            kept.append(attachment)
+        }
+        orderedAttachments = kept
     }
 
     /// Set up the attachment manager to listen to selection updates, giving text attachments a chance to respond to
