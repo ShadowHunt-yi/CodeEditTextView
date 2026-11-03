@@ -44,6 +44,13 @@ public class TextLayoutManager: NSObject {
         }
     }
 
+    /// 当前被折叠隐藏的行，及其折叠前的高度（行号 → 高度）。
+    ///
+    /// 折叠不改文本、不改行偏移，只把这些行的高度置 0（和附件盖住换行符同样的手法）。
+    /// 记原高度是为了展开时能原样还原——尤其是开启了自动换行的行，
+    /// 其高度取决于布局宽度，不能简单按「一行高」恢复。
+    var foldedLineHeights: [Int: CGFloat] = [:]
+
     /// The amount of extra vertical padding used to lay out lines in before they come into view.
     ///
     /// This solves a small problem with layout performance, if you're seeing layout lagging behind while scrolling,
