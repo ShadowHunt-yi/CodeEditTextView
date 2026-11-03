@@ -1,0 +1,14 @@
+Sources/CodeEditTextView/Folding/TextLayoutManager+Folding.swift
+  h_6984196a933a03 68-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "85d75fed7f312723c983a382d8473a1392e05b44",
+  "prompts": {},
+  "humans": {
+    "h_6984196a933a03": {
+      "author": "qiyi <1724747604@qq.com>"
+    }
+  }
+}
