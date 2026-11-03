@@ -1,0 +1,14 @@
+Sources/CodeEditTextView/TextLayoutManager/TextAttachments/TextAttachmentManager.swift
+  h_6984196a933a03 22-84,93-103,105-107,111,117,189-194,196,223-246,248-251,253,255
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "8b9b35ac08ce7c06b07ae4f9a2f293c3116ee6a3",
+  "prompts": {},
+  "humans": {
+    "h_6984196a933a03": {
+      "author": "qiyi <1724747604@qq.com>"
+    }
+  }
+}
